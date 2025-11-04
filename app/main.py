@@ -6,7 +6,6 @@ from app.di import Container
 from app.adapters.http.health_router import router as health_router
 from app.adapters.http.auth_router import router as auth_router
 from app.adapters.http.items_router import router as items_router
-from app.infrastructure.db import Database
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, swagger_ui_parameters={"persistAuthorization": True})
@@ -34,3 +33,5 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(items_router, prefix="/items", tags=["items"])
     return app
+
+app = create_app()
