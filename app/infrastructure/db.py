@@ -54,8 +54,20 @@ class Database:
 
         try:
             default_db = client.get_default_database()
-        except Exception as e:
+        except Exception:
             default_db = None
 
-        self._db = default_db or client[settings.DB_NAME]
+        if default_db is not None:
+            self._db = default_db
+            return self._db
+
+        # Guard: DB not in URI, so we must have DB_NAME
+        if not getattr(settings, "DB_NAME", None):
+            raise RuntimeError(
+                "Mongo DB name is not set: add it to the URI "
+                "(.../yourdb?...) or set DB_NAME environment variable."
+            )
+
+        self._db = client[settings.DB_NAME]
         return self._db
+
