@@ -1,9 +1,21 @@
-FROM mirror.gcr.io/library/python:3.11-slim
+# use slim is fine, just add CA certs
+FROM python:3.11-slim
+
 WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-COPY requirements.txt .
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# add CA bundle (needed for TLS to Atlas)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# deps
+COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+
+# app
 COPY ./app ./app
-COPY .env ./.env
+
 EXPOSE 8000
-CMD ["uvicorn","app.main:create_app","--host","0.0.0.0","--port","8000","--factory"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

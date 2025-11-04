@@ -6,3 +6,4 @@ python-jose==3.3.0
 passlib[bcrypt]==1.7.4
 starlette==0.40.0
 dnspython>=2.3
+certifi>=2024.2.2
