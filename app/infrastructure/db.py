@@ -45,3 +45,17 @@ class Database:
             self._client = AsyncIOMotorClient(settings.MONGO_URI, tlsCAFile=ca)
 
         return self._client
+
+    async def db(self):
+        if self._db is not None:
+            return self._db
+
+        client = await self.client()
+
+        try:
+            default_db = client.get_default_database()
+        except Exception as e:
+            default_db = None
+
+        self._db = default_db or client[settings.DB_NAME]
+        return self._db
