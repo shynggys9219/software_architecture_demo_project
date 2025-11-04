@@ -8,32 +8,17 @@ on:
 permissions:
   contents: read
   packages: write   # allow pushing to GHCR
-  id-token: write   # for future provenance (optional)
+  id-token: write   # (optional) provenance
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository }}  # e.g. owner/repo
+  IMAGE_NAME: ${{ github.repository }}  # owner/repo
 
 jobs:
   build-and-push:
-    name: Build & Push images
+    name: Build & Push app image
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      matrix:
-        component:
-          - name: app
-            dockerfile: Dockerfile
-            context: .
-            port: "8000"
-          - name: audit
-            dockerfile: audit_service/Dockerfile
-            context: .
-            port: "9000"
-          - name: nginx
-            dockerfile: nginx/Dockerfile
-            context: nginx
-            port: "80"
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -57,7 +42,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.component.name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app
           tags: |
             type=sha,format=long
             type=ref,event=branch
@@ -67,8 +52,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.component.context }}
-          file: ${{ matrix.component.dockerfile }}
+          context: .
+          file: Dockerfile
           push: true
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
@@ -78,6 +63,5 @@ jobs:
 
       - name: Summary
         run: |
-          echo "Published => ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.component.name }}"
-          echo "Tags:"
+          echo "Published:"
           echo '${{ steps.meta.outputs.tags }}'
