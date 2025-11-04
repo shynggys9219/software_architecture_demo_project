@@ -11,7 +11,6 @@ from app.infrastructure.db import Database
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, swagger_ui_parameters={"persistAuthorization": True})
     app.container = Container()  # type: ignore[attr-defined]
-    app.container.db = Database()
 
     @app.on_event("startup")
     async def _startup():
