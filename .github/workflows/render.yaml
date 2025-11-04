@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: items-service
+    env: docker
+    region: frankfurt
+    dockerCommand: ""   # use CMD from your Dockerfile
+    image:
+      url: ghcr.io/{{ github.owner }}/{{ github.repo }}/app:latest
+    plan: free
+    numInstances: 1
+    healthCheckPath: /healthz
+    autoDeploy: false
+    rootDir: /
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: DB_NAME
+        value: assignmentdb
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ALG
+        value: HS256
+      - key: APP_NAME
+        value: FastAPI Clean
