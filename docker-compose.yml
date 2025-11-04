@@ -1,0 +1,116 @@
+version: "3.8"
+
+services:
+  # --- MongoDB replica set
+  mongo1:
+    image: mirror.gcr.io/library/mongo:7.0
+    container_name: mongo1
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports: ["27017:27017"]         # publish for host access
+    networks: [appnet]
+
+  mongo2:
+    image: mirror.gcr.io/library/mongo:7.0
+    container_name: mongo2
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports: ["27018:27017"]         # publish for host access
+    networks: [appnet]
+
+  mongo3:
+    image: mirror.gcr.io/library/mongo:7.0
+    container_name: mongo3
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports: ["27019:27017"]         # publish for host access
+    networks: [appnet]
+
+  # --- Inline RS initializer (no extra files/folders) ---
+  mongo-setup:
+    image: mirror.gcr.io/library/mongo:7.0
+    container_name: mongo-setup
+    depends_on:
+      mongo1: { condition: service_started }
+      mongo2: { condition: service_started }
+      mongo3: { condition: service_started }
+    environment:
+      # MODE=internal -> advertise docker DNS (mongo1,mongo2,mongo3)
+      # MODE=host     -> advertise host.docker.internal:27017/18/19 (good for Compass)
+      MODE: "internal"
+    networks: [appnet]
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+
+        # Pick advertised hosts based on MODE
+        if [[ "${MODE:-internal}" == "host" ]]; then
+          PH="host.docker.internal:27017"; M2="host.docker.internal:27018"; M3="host.docker.internal:27019"
+        else
+          PH="mongo1:27017"; M2="mongo2:27017"; M3="mongo3:27017"
+        fi
+
+        # Wait for mongo1 to be reachable
+        for i in {1..60}; do
+          if mongosh --host mongo1:27017 --quiet --eval 'db.adminCommand("ping")' >/dev/null 2>&1; then
+            break
+          fi
+          echo "Waiting for mongo1… ($i)"
+          sleep 1
+        done
+
+        # Build the RS init script (use $$ to escape $ for docker-compose)
+        cat >/tmp/rs-init.js <<JS
+        const cfg = { _id: "rs0", members: [
+          { _id: 0, host: "$${PH}" },
+          { _id: 1, host: "$${M2}" },
+          { _id: 2, host: "$${M3}" }
+        ]};
+        try { rs.initiate(cfg); } catch (e) { print("rs.initiate: " + e); }
+        // Wait up to ~120s for PRIMARY
+        let s;
+        for (let i=0;i<120;i++){
+          try {
+            s = rs.status();
+            if (s.ok === 1 && s.members && s.members.some(m=>m.stateStr==="PRIMARY")) break;
+          } catch (e) {}
+          sleep(1000);
+        }
+        printjson( rs.status().members.map(m => ({name:m.name, state:m.stateStr})) );
+        JS
+
+        mongosh --host mongo1:27017 /tmp/rs-init.js || true
+        true
+
+  # --- App instances (FastAPI) ---
+  app1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: app1
+    env_file: .env
+    depends_on:
+      mongo-setup: { condition: service_started }
+    networks: [appnet]
+
+  app2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: app2
+    env_file: .env
+    depends_on:
+      mongo-setup: { condition: service_started }
+    networks: [appnet]
+
+  # --- NGINX (expects ./nginx/Dockerfile & ./nginx/nginx.conf) ---
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: nginx-lb
+    depends_on: [app1, app2]
+    ports: ["8080:80"]
+    networks: [appnet]
+
+networks:
+  appnet: {}
