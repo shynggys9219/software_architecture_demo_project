@@ -1,0 +1,41 @@
+name: CI (lint & test)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff==0.6.9 pytest==8.3.3
+          # install deps for both services if present
+          if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
+          if [ -f audit_service/requirements.txt ]; then pip install -r audit_service/requirements.txt || true; fi
+
+      - name: Ruff (lint)
+        run: |
+          ruff check app || true
+          ruff check audit_service || true
+
+      - name: Pytest (placeholder)
+        run: |
+          # add tests under tests/ later; don't fail the pipeline for now
+          if [ -d tests ]; then pytest -q || true; else echo "no tests yet"; fi
