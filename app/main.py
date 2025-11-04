@@ -6,10 +6,20 @@ from app.di import Container
 from app.adapters.http.health_router import router as health_router
 from app.adapters.http.auth_router import router as auth_router
 from app.adapters.http.items_router import router as items_router
+from app.infrastructure.db import Database
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, swagger_ui_parameters={"persistAuthorization": True})
     app.container = Container()  # type: ignore[attr-defined]
+    app.container.db = Database()
+
+    @app.on_event("startup")
+    async def _startup():
+        try:
+            d = await app.container.db.db()
+            await d.command("ping")
+        except Exception:
+            pass
 
     # CORS
     origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
